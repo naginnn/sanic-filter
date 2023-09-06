@@ -59,19 +59,13 @@ class FilterBase:
             else:
                 self.meta[name].update({'value': None})
 
-            # setattr(self, name, value)
-        # self.data_fields = type('Data', (), self.data_fields)
-
     def filter(self, query):
         #### if alchemy .....
         return self.__alchemy_filter(query=query)
 
     def __alchemy_filter(self, query):
-        """ Вытащить класс модели и начать манипуляции с операторами
-        возвращает объект запроса sqlalchemy
         """
-        # like, ilike, in, ==, returned_fileds, !!json_fields!!
-        # Проверять есть ли возвращаемое поле у Модели
+        """
         returned = []
         params = []
         models, operator = self.__get_alchemy_models(query)
@@ -114,18 +108,31 @@ class FilterBase:
         returned_fields = []
         fields = value.replace(' ', '').split(',')
         for field in fields:
-            field, child = field.split('.') if '.' in field else (field, None)
+            parents = field.split('.')
+            attr = None
             for name, values in models.items():
-                if field in values.get('fields'):
-                    attr = getattr(values.get('model'), field)
-                    returned_fields.append(attr[child].label(child) if child else attr)  # add as
+                if parents[0] in values.get('fields'):
+                    for parent in parents:
+                        if attr is None:
+                            attr = getattr(values.get('model'), parent)
+                        else:
+                            attr = attr[parent]
+                    returned_fields.append(attr)  # add as
         return returned_fields
 
     def __get_json_field(self, models, child, parent):
+        parents = parent.split('.')
+        attr = None
         for name, values in models.items():
-            if parent in values.get('fields'):
-                attr = getattr(values.get('model'), parent)[child]  # casts types
-                return cast(attr, String)
+            if parents[0] in values.get('fields'):
+                for parent in parents:
+                    if attr is None:
+                        attr = getattr(values.get('model'), parent)
+                    else:
+                        attr = attr[parent]
+                attr = attr[child]
+                return attr
+                # return cast(attr, String)
 
     def __get_field(self, models, param):
         for name, values in models.items():
@@ -136,15 +143,30 @@ class FilterBase:
     def __create_exp(self, param, values, option):
         if not values:
             return
-        values = values.replace(' ', '').split(',')
-        if option == 'like':
-            return [param.like('{}'.format(value)) for value in values]
-        elif option == 'ilike':
-            return [param.ilike('%{}%'.format(value)) for value in values if value]
-        elif option == 'in':
-            return [param.in_(values)]
-        elif option == '==':
-            return [param == value for value in values]
-        elif option == '!=':
-            return [param != value for value in values]
+        values = values.split(',')
+        options = option.replace(' ', '').split(',')
+        params = []
+        param = cast(param, String)
+        buf = None
+        for option in options:
+            for value in values:
+                if not value:
+                    continue
+                if option == 'like':
+                    buf = param.like('{}'.format(value))
+                elif option == 'ilike':
+                    buf = param.ilike('%{}%'.format(value))
+                elif option == 'in':
+                    buf = param.in_(values), String
+                elif option == '==':
+                    buf = param == value
+                elif option == '!=':
+                    buf = param != value
+                elif option == '>=':
+                    buf = param >= value
+                elif option == '<=':
+                    buf = param <= value
+                if buf is not None:
+                    params.append(buf)
+        return params
 
