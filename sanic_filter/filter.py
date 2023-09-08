@@ -157,7 +157,7 @@ class FilterBase:
                 elif option == 'ilike':
                     buf = param.ilike('%{}%'.format(value))
                 elif option == 'in':
-                    buf = param.in_(values), String
+                    buf = param.in_(**values)
                 elif option == '==':
                     buf = param == value
                 elif option == '!=':
